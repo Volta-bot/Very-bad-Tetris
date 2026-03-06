@@ -35,14 +35,48 @@ running = True
 current_piece_index = random.randint(0,6)
 current_piece_color = PIECE_COLORS[current_piece_index]
 current_piece = PIECES[current_piece_index]
-current_piece_position_x = COLUMNS/2
+current_piece_position_x = COLUMNS//2
 current_piece_position_y = 0
+
+fall_timer = 0
+fall_delay = 500        # Piece fall down once every 500ms
+move_timer = 0
+move_delay = 150         # Slide every 150ms
+move_direction = 0
 while running:
+    dt = clock.tick(60)     #limit to 60fps
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
+        if event.type == pygame.KEYDOWN:
+            key_hold_timer = 0
+            # Movement
+            if event.key == pygame.K_a and current_piece_position_x>0:
+                current_piece_position_x -= 1
+                move_direction = -1
+                move_timer = 0
+            if event.key == pygame.K_d and current_piece_position_x<(COLUMNS-len(current_piece[0])):
+                current_piece_position_x += 1
+                move_direction = 1
+                move_timer = 0
+        if event.type == pygame.KEYUP:
+            move_direction = 0
+    #Update
+    # Handle Fall
+    fall_timer += dt
+    if fall_timer > fall_delay:
+        current_piece_position_y += 1
+        fall_timer = 0
+    key_pressed = pygame.key.get_pressed()
+    # Handle sliding
+    if move_direction != 0:
+        move_timer += dt
+        if move_timer>move_delay:
+            current_piece_position_x += move_direction
+            move_timer = 0
+
+    #Draw
     screen.fill((0,0,0))
-    #
     for r in range(len(current_piece)):
         for c in range(len(current_piece[r])):
             if(current_piece[r][c] == 1):
@@ -52,5 +86,4 @@ while running:
                 pygame.draw.rect(screen, current_piece_color, rect)
     # Update display
     pygame.display.flip()
-    clock.tick(60)      #limit to 60fps
 pygame.quit()
