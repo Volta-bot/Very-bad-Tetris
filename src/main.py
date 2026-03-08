@@ -8,6 +8,7 @@ COLUMNS = 10
 HEIGHT = 600 
 WIDTH_BOARD  = 300
 CELL = 30
+SMALL_CELL = 20
 # Other UI elements
 WIDTH_LEFT = 150
 WIDTH_RIGHT = 150
@@ -106,7 +107,7 @@ def calculate_points(cleared_lines):
 # Initialize Pygame
 screen = pygame.display.set_mode((WIDTH_BOARD+WIDTH_LEFT+WIDTH_RIGHT,HEIGHT))
 clock = pygame.time.Clock()
-font = pygame.font.Font("assets/font/Ithaca-LVB75.ttf",size = 30)
+font = pygame.font.Font("assets/font/Ithaca-LVB75.ttf",size = 36)
 running = True
 # Initialize current piece before game starts
 current_piece_index = random.randint(1,7)
@@ -247,8 +248,22 @@ while running:
                 rect = pygame.Rect(c*CELL + WIDTH_LEFT,r*CELL,CELL,CELL)
                 pygame.draw.rect(screen, PIECE_COLORS[BOARD[r][c]], rect)
     # Draw score
-    score_text = font.render(f"Score: {int(current_score)}",True, (255,255,255))
-    screen.blit(score_text, screen.blit(score_text, (WIDTH_LEFT + WIDTH_BOARD + 20, 300)))
+    score_text = font.render(f"SCORE: {int(current_score)}",False, (255,255,255))
+    screen.blit(score_text, (WIDTH_LEFT + WIDTH_BOARD + 20, 300))
+    # Draw hold
+    hold_text = font.render("HOLD:",False, (255,255,255))
+    screen.blit(hold_text, (20,70))
+    if hold_piece_index != 0:
+        hold_piece = PIECES[hold_piece_index]
+        hold_piece_color = PIECE_COLORS[hold_piece_index]
+        for r in range(len(hold_piece)):
+            for c in range(len(hold_piece[r])):
+                if hold_piece[r][c] == 1:
+                    x = 20 + c * SMALL_CELL
+                    y = 110 + r * SMALL_CELL
+                    rect = pygame.Rect(x,y,SMALL_CELL,SMALL_CELL)
+                    pygame.draw.rect(screen, hold_piece_color, rect)
+
 # Update display
     pygame.display.flip()
 
