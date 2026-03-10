@@ -12,8 +12,6 @@ SMALL_CELL = 20
 # Other UI elements
 WIDTH_LEFT = 150
 WIDTH_RIGHT = 150
-
-
 # Initialize board and bricks
 BOARD = [[0 for i in range(COLUMNS)] for i in range(ROWS)]      #10x20 grid, initial value = 0
 PIECES = [
@@ -51,12 +49,14 @@ def check_collision(piece, pos_x, pos_y):
                     return True
                 if BOARD[board_y][board_x] != 0:    # A piece is already under
                     return True
-    return False            
+    return False          
 def rotate(piece,isRight):
+    global lock_timer
+    lock_timer = 0
     if isRight == True:
         return [list(row)[::-1] for row in zip(*piece)]
     else:
-        return [list(row)[::-1] for row in zip(*piece)]
+        return [list(row) for row in zip(*piece)][::-1]
 def lock_into_board():
     global current_piece, current_piece_position_x, current_piece_position_y, BOARD
     for r in range(len(current_piece)):
@@ -67,8 +67,10 @@ def lock_into_board():
                 BOARD[board_y][board_x] = current_piece_index
 def spawn_new_piece():
     global current_piece_index, current_piece_color, current_piece, current_piece_position_x, current_piece_position_y, running
-    global current_piece_bag, next_piece_bag, canHold
+    global current_piece_bag, next_piece_bag, canHold, fall_timer, lock_reset_counter
     canHold = True
+    fall_timer = 0
+    lock_reset_counter = 0
     if not current_piece_bag:   # current piece bag is empty -> shuffle a new bag
         current_piece_bag = next_piece_bag
         next_piece_bag = list(range(1,8))
@@ -129,6 +131,12 @@ move_timer = 0
 move_delay = 100        # Slide every 150ms
 move_direction = 0
 
+lock_delay = 500        #lock into board after 500ms
+lock_timer = 0
+
+max_lock_reset = 15
+lock_reset_counter = 0
+
 current_score = 0
 current_piece_bag =[]
 next_piece_bag = list(range(1,8))
@@ -145,10 +153,16 @@ while running:
         if event.type == pygame.KEYDOWN:
             # Move left/right
             if event.key == pygame.K_LEFT and not check_collision(current_piece,current_piece_position_x-1,current_piece_position_y):
+                if lock_reset_counter < 15 and check_collision(current_piece, current_piece_position_x,current_piece_position_y+1):
+                    lock_timer = 0
+                    lock_reset_counter += 1
                 current_piece_position_x -= 1
                 move_direction = -1
                 move_timer = 0
             elif event.key == pygame.K_RIGHT and not check_collision(current_piece,current_piece_position_x+1, current_piece_position_y):
+                if lock_reset_counter < 15 and check_collision(current_piece, current_piece_position_x,current_piece_position_y+1):
+                    lock_timer = 0
+                    lock_reset_counter += 1
                 current_piece_position_x += 1
                 move_direction = 1
                 move_timer = 0
@@ -166,10 +180,16 @@ while running:
                 calculate_points(cleared_lines)
             # Rotate piece (clock wise/counter clock wise)
             elif event.key == pygame.K_c:
+                if lock_reset_counter < 15 and check_collision(current_piece, current_piece_position_x,current_piece_position_y+1):
+                    lock_timer = 0
+                    lock_reset_counter += 1
                 rotated_piece = rotate(current_piece,True)
                 if not check_collision(rotated_piece,current_piece_position_x,current_piece_position_y):
                     current_piece = rotated_piece
             elif event.key == pygame.K_z:
+                if lock_reset_counter < 15 and check_collision(current_piece, current_piece_position_x,current_piece_position_y+1):
+                    lock_timer = 0
+                    lock_reset_counter += 1
                 rotated_piece = rotate(current_piece,False)
                 if not check_collision(rotated_piece,current_piece_position_x,current_piece_position_y):
                     current_piece = rotated_piece
@@ -197,7 +217,7 @@ while running:
             if event.key == pygame.K_DOWN:
                 fall_delay = 500
 # Game logic
-    # Handle sliding
+    # Get move direction
     keys = pygame.key.get_pressed()
     if keys[pygame.K_LEFT] and not keys[pygame.K_RIGHT]:
         move_direction = -1
@@ -205,7 +225,7 @@ while running:
         move_direction = 1
     else:
         move_direction = 0
-
+    # Handle sliding
     if move_direction != 0: 
         time_hold += dt
         if(time_hold > slide_delay):
@@ -213,18 +233,25 @@ while running:
             if(move_timer>move_delay and not check_collision(current_piece, current_piece_position_x + move_direction,current_piece_position_y)):
                 current_piece_position_x += move_direction
                 move_timer = 0    
-    # Handle fall and check collision
+                if lock_reset_counter < 15 and check_collision(current_piece, current_piece_position_x,current_piece_position_y+1):
+                    lock_timer = 0
+                    lock_reset_counter += 1                 
+    # Gravity
     fall_timer += dt
     cleared_lines = 0
-    if fall_timer > fall_delay:
+    if fall_timer > fall_delay and not check_collision(current_piece,current_piece_position_x,current_piece_position_y+1):
         fall_timer = 0
-        if check_collision(current_piece, current_piece_position_x, current_piece_position_y+1):
+        current_piece_position_y += 1 
+    # Lock into board
+    if check_collision(current_piece,current_piece_position_x,current_piece_position_y+1):
+        lock_timer += dt
+        if lock_timer > lock_delay:         # lock in after 500ms delay
             lock_into_board()
             cleared_lines = clear_line()
-            spawn_new_piece()
             calculate_points(cleared_lines)
-        else:
-            current_piece_position_y += 1    
+            spawn_new_piece()
+    else:
+        lock_timer = 0   
 # Draw
     screen.fill((0,0,0))    # reset the screen
     screen.blit(main_UI,(0,0))
@@ -271,7 +298,7 @@ while running:
                     pygame.draw.rect(screen, hold_piece_color, rect)
     # Draw next piece
     next_text = font.render("NEXT:",False,(255,255,255))
-    screen.blit(next_text,(WIDTH_LEFT + WIDTH_BOARD + 10, 70))
+    screen.blit(next_text,(WIDTH_LEFT + WIDTH_BOARD + 15, 70))
     temp = 0
     for i in range(0,4):
         if i<len(current_piece_bag):
@@ -280,22 +307,23 @@ while running:
             ith_next_piece_index = next_piece_bag[7 - temp - 1]
             temp += 1
         # draw here
-        yoffset = 120
         ith_next_piece = PIECES[ith_next_piece_index]
         ith_next_piece_color = PIECE_COLORS[ith_next_piece_index]
         if i == 0:
             size = CELL
+            yoffset = 120
+            xoffset = 15
         else:
             size = SMALL_CELL
             yoffset = 140 +60 *i
+            xoffset = 30
         for r in range(len(ith_next_piece)):
             for c in range(len(ith_next_piece[r])):
                 if ith_next_piece[r][c] ==1:
-                    x = WIDTH_LEFT + WIDTH_BOARD + 10 + c*size
+                    x = WIDTH_LEFT + WIDTH_BOARD + xoffset + c*size
                     y = yoffset + r*size
                     rect = pygame.Rect(x,y,size,size)
                     pygame.draw.rect(screen, ith_next_piece_color, rect)
 # Update display
     pygame.display.flip()
-
 pygame.quit()
