@@ -66,12 +66,14 @@ def lock_into_board():
                 board_y = current_piece_position_y + r
                 BOARD[board_y][board_x] = current_piece_index
 def spawn_new_piece():
-    global current_piece_index, current_piece_color, current_piece, current_piece_position_x, current_piece_position_y, running, piece_bag, canHold
+    global current_piece_index, current_piece_color, current_piece, current_piece_position_x, current_piece_position_y, running
+    global current_piece_bag, next_piece_bag, canHold
     canHold = True
-    if not piece_bag:   # piece bag is empty -> shuffle a new bag
-        piece_bag = list(range(1,8))
-        random.shuffle(piece_bag)
-    current_piece_index = piece_bag.pop()
+    if not current_piece_bag:   # current piece bag is empty -> shuffle a new bag
+        current_piece_bag = next_piece_bag
+        next_piece_bag = list(range(1,8))
+        random.shuffle(next_piece_bag)
+    current_piece_index = current_piece_bag.pop()
     current_piece_color = PIECE_COLORS[current_piece_index]
     current_piece = PIECES[current_piece_index]
     current_piece_position_x = COLUMNS//2 - len(current_piece[0])//2
@@ -107,7 +109,8 @@ def calculate_points(cleared_lines):
 # Initialize Pygame
 screen = pygame.display.set_mode((WIDTH_BOARD+WIDTH_LEFT+WIDTH_RIGHT,HEIGHT))
 clock = pygame.time.Clock()
-font = pygame.font.Font("assets/font/Ithaca-LVB75.ttf",size = 36)
+font = pygame.font.Font("assets/font/Ithaca-LVB75.ttf",size = 32)
+main_UI = pygame.image.load("assets/UI/Main_UI.png")
 running = True
 # Initialize current piece before game starts
 current_piece_index = random.randint(1,7)
@@ -127,7 +130,9 @@ move_delay = 100        # Slide every 150ms
 move_direction = 0
 
 current_score = 0
-piece_bag =[]
+current_piece_bag =[]
+next_piece_bag = list(range(1,8))
+random.shuffle(next_piece_bag)
 
 isHolding = False
 hold_piece_index = 0
@@ -222,6 +227,7 @@ while running:
             current_piece_position_y += 1    
 # Draw
     screen.fill((0,0,0))    # reset the screen
+    screen.blit(main_UI,(0,0))
     # Draw ghost block (prediction)
     ghost_position_y = current_piece_position_y
     while not check_collision(current_piece, current_piece_position_x, ghost_position_y+1):
@@ -249,21 +255,46 @@ while running:
                 pygame.draw.rect(screen, PIECE_COLORS[BOARD[r][c]], rect)
     # Draw score
     score_text = font.render(f"SCORE: {int(current_score)}",False, (255,255,255))
-    screen.blit(score_text, (WIDTH_LEFT + WIDTH_BOARD + 20, 300))
+    screen.blit(score_text, (5, 160))
     # Draw hold
     hold_text = font.render("HOLD:",False, (255,255,255))
-    screen.blit(hold_text, (20,70))
+    screen.blit(hold_text, (5,70))
     if hold_piece_index != 0:
         hold_piece = PIECES[hold_piece_index]
         hold_piece_color = PIECE_COLORS[hold_piece_index]
         for r in range(len(hold_piece)):
             for c in range(len(hold_piece[r])):
                 if hold_piece[r][c] == 1:
-                    x = 20 + c * SMALL_CELL
+                    x = 5 + c * SMALL_CELL
                     y = 110 + r * SMALL_CELL
                     rect = pygame.Rect(x,y,SMALL_CELL,SMALL_CELL)
                     pygame.draw.rect(screen, hold_piece_color, rect)
-
+    # Draw next piece
+    next_text = font.render("NEXT:",False,(255,255,255))
+    screen.blit(next_text,(WIDTH_LEFT + WIDTH_BOARD + 10, 70))
+    temp = 0
+    for i in range(0,4):
+        if i<len(current_piece_bag):
+            ith_next_piece_index = current_piece_bag[len(current_piece_bag) - i -1]
+        else:
+            ith_next_piece_index = next_piece_bag[7 - temp - 1]
+            temp += 1
+        # draw here
+        yoffset = 120
+        ith_next_piece = PIECES[ith_next_piece_index]
+        ith_next_piece_color = PIECE_COLORS[ith_next_piece_index]
+        if i == 0:
+            size = CELL
+        else:
+            size = SMALL_CELL
+            yoffset = 140 +60 *i
+        for r in range(len(ith_next_piece)):
+            for c in range(len(ith_next_piece[r])):
+                if ith_next_piece[r][c] ==1:
+                    x = WIDTH_LEFT + WIDTH_BOARD + 10 + c*size
+                    y = yoffset + r*size
+                    rect = pygame.Rect(x,y,size,size)
+                    pygame.draw.rect(screen, ith_next_piece_color, rect)
 # Update display
     pygame.display.flip()
 
