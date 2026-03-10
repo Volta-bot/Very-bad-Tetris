@@ -122,7 +122,11 @@ current_piece_position_x = COLUMNS//2 - len(current_piece[0])//2
 current_piece_position_y = 0
 
 fall_timer = 0
-fall_delay = 500        # Piece fall down once every 500ms
+fall_delay = 800            # Time between each fall
+soft_drop_multiplier = 10   # Speed increase when holding softdrop button
+fall_delay_temp = 0         # Used to store the current fall delay before pressing softdrop button
+total_line_cleared = 0
+level = 0
 
 time_hold = 0
 slide_delay = 200       # Starts sliding after holding for 300ms
@@ -166,16 +170,20 @@ while running:
                 current_piece_position_x += 1
                 move_direction = 1
                 move_timer = 0
-            # Drop faster
+            # Soft drop
             elif event.key ==  pygame.K_DOWN:
-                fall_delay = 150
-            # Drop immediately
+                fall_delay_temp = fall_delay
+                fall_delay = max(50,fall_delay/soft_drop_multiplier)
+            # Hard drop
             elif event.key == pygame.K_UP:
                 while not check_collision(current_piece, current_piece_position_x, current_piece_position_y+1):
                     current_piece_position_y += 1
                 fall_timer = 0
                 lock_into_board()
                 cleared_lines = clear_line()
+                total_line_cleared += cleared_lines
+                level = total_line_cleared//10
+                fall_delay = max(50,800 - level*60) #minimum delay is 50ms
                 spawn_new_piece()
                 calculate_points(cleared_lines)
             # Rotate piece (clock wise/counter clock wise)
@@ -215,7 +223,7 @@ while running:
                 time_hold = 0
                 move_direction = 0
             if event.key == pygame.K_DOWN:
-                fall_delay = 500
+                fall_delay = fall_delay_temp        # restore the previous fall delay
 # Game logic
     # Get move direction
     keys = pygame.key.get_pressed()
@@ -248,6 +256,9 @@ while running:
         if lock_timer > lock_delay:         # lock in after 500ms delay
             lock_into_board()
             cleared_lines = clear_line()
+            total_line_cleared += cleared_lines
+            level = total_line_cleared//10
+            fall_delay = max(50,800 - level*60) #minimum delay is 50ms
             calculate_points(cleared_lines)
             spawn_new_piece()
     else:
