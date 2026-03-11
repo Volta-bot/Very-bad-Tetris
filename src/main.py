@@ -35,6 +35,14 @@ PIECE_COLORS = [
     (15, 108, 242)      # J
 ]
 GHOST_COLOR = (153, 153, 153)
+KICKS = [               # Try every possible kicks after a rotation, stop after finding the first valid kick
+    (0,0),
+    (1,0),
+    (-1,0),
+    (0,-1),
+    (2,0),
+    (-2,0)
+]
 # Functions
 def check_collision(piece, pos_x, pos_y):
     global BOARD
@@ -50,13 +58,19 @@ def check_collision(piece, pos_x, pos_y):
                 if BOARD[board_y][board_x] != 0:    # A piece is already under
                     return True
     return False          
-def rotate(piece,isRight):
+def rotate(piece,clockwise = True):
     global lock_timer
     lock_timer = 0
-    if isRight == True:
+    if clockwise == True:
         return [list(row)[::-1] for row in zip(*piece)]
     else:
         return [list(row) for row in zip(*piece)][::-1]
+def try_rotate(current_piece, pos_x, pos_y, clockwise):  # Trying every possible wall kicks until the first valid one
+    rotated_piece = rotate(current_piece,clockwise)
+    for dx,dy in KICKS:
+        if not check_collision(rotated_piece, pos_x + dx, pos_y + dy):
+            return rotated_piece, pos_x + dx, pos_y + dy
+    return current_piece, pos_x, pos_y
 def lock_into_board():
     global current_piece, current_piece_position_x, current_piece_position_y, BOARD
     for r in range(len(current_piece)):
@@ -67,7 +81,8 @@ def lock_into_board():
                 BOARD[board_y][board_x] = current_piece_index
 def spawn_new_piece():
     global current_piece_index, current_piece_color, current_piece, current_piece_position_x, current_piece_position_y, running
-    global current_piece_bag, next_piece_bag, canHold, fall_timer, lock_reset_counter
+    global current_piece_bag, next_piece_bag, canHold, fall_timer, lock_reset_counter, touched_floor
+    touched_floor = False
     canHold = True
     fall_timer = 0
     lock_reset_counter = 0
@@ -127,6 +142,7 @@ soft_drop_multiplier = 10   # Speed increase when holding softdrop button
 fall_delay_temp = 0         # Used to store the current fall delay before pressing softdrop button
 total_line_cleared = 0
 level = 0
+touched_floor = False
 
 time_hold = 0
 slide_delay = 200       # Starts sliding after holding for 300ms
@@ -157,14 +173,14 @@ while running:
         if event.type == pygame.KEYDOWN:
             # Move left/right
             if event.key == pygame.K_LEFT and not check_collision(current_piece,current_piece_position_x-1,current_piece_position_y):
-                if lock_reset_counter < 15 and check_collision(current_piece, current_piece_position_x,current_piece_position_y+1):
+                if lock_reset_counter < 15 and touched_floor:
                     lock_timer = 0
                     lock_reset_counter += 1
                 current_piece_position_x -= 1
                 move_direction = -1
                 move_timer = 0
             elif event.key == pygame.K_RIGHT and not check_collision(current_piece,current_piece_position_x+1, current_piece_position_y):
-                if lock_reset_counter < 15 and check_collision(current_piece, current_piece_position_x,current_piece_position_y+1):
+                if lock_reset_counter < 15 and touched_floor:
                     lock_timer = 0
                     lock_reset_counter += 1
                 current_piece_position_x += 1
@@ -188,19 +204,17 @@ while running:
                 calculate_points(cleared_lines)
             # Rotate piece (clock wise/counter clock wise)
             elif event.key == pygame.K_c:
-                if lock_reset_counter < 15 and check_collision(current_piece, current_piece_position_x,current_piece_position_y+1):
-                    lock_timer = 0
-                    lock_reset_counter += 1
-                rotated_piece = rotate(current_piece,True)
-                if not check_collision(rotated_piece,current_piece_position_x,current_piece_position_y):
-                    current_piece = rotated_piece
+                if lock_reset_counter < 15:
+                    if touched_floor:
+                        lock_timer = 0
+                        lock_reset_counter += 1
+                    current_piece, current_piece_position_x, current_piece_position_y = try_rotate(current_piece, current_piece_position_x, current_piece_position_y, True)
             elif event.key == pygame.K_z:
-                if lock_reset_counter < 15 and check_collision(current_piece, current_piece_position_x,current_piece_position_y+1):
-                    lock_timer = 0
-                    lock_reset_counter += 1
-                rotated_piece = rotate(current_piece,False)
-                if not check_collision(rotated_piece,current_piece_position_x,current_piece_position_y):
-                    current_piece = rotated_piece
+                if lock_reset_counter < 15: 
+                    if touched_floor:
+                        lock_timer = 0
+                        lock_reset_counter += 1
+                    current_piece, current_piece_position_x, current_piece_position_y = try_rotate(current_piece, current_piece_position_x, current_piece_position_y, False)
             # Hold piece
             elif event.key == pygame.K_x and canHold:
                 canHold = False
@@ -241,7 +255,7 @@ while running:
             if(move_timer>move_delay and not check_collision(current_piece, current_piece_position_x + move_direction,current_piece_position_y)):
                 current_piece_position_x += move_direction
                 move_timer = 0    
-                if lock_reset_counter < 15 and check_collision(current_piece, current_piece_position_x,current_piece_position_y+1):
+                if lock_reset_counter < 15 and touched_floor:
                     lock_timer = 0
                     lock_reset_counter += 1                 
     # Gravity
@@ -252,6 +266,7 @@ while running:
         current_piece_position_y += 1 
     # Lock into board
     if check_collision(current_piece,current_piece_position_x,current_piece_position_y+1):
+        touched_floor = True
         lock_timer += dt
         if lock_timer > lock_delay:         # lock in after 500ms delay
             lock_into_board()
@@ -337,4 +352,5 @@ while running:
                     pygame.draw.rect(screen, ith_next_piece_color, rect)
 # Update display
     pygame.display.flip()
+    print(lock_reset_counter)
 pygame.quit()
