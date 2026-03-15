@@ -13,8 +13,8 @@ SMALL_CELL = 20
 WIDTH_LEFT = 150
 WIDTH_RIGHT = 150
 # Initialize board and bricks
-BOARD = [[0 for i in range(COLUMNS)] for i in range(ROWS)]      #10x20 grid, initial value = 0
-PIECES = [
+BOARD = [[0 for i in range(COLUMNS)] for i in range(ROWS)]      #10x20 grid, initial value = 0 means empty board.
+PIECES = [                      
     [[]],
     [[1,1,1,1]],        # I - 1
     [[1,1],[1,1]],      # O - 2
@@ -24,6 +24,7 @@ PIECES = [
     [[1,1,1],[1,0,0]],  # L - 6
     [[1,1,1],[0,0,1]]   # J - 7
 ]
+GHOST_COLOR = (153, 153, 153)
 PIECE_COLORS = [
     (),
     (33, 205, 255),     # I
@@ -34,15 +35,33 @@ PIECE_COLORS = [
     (255, 131, 0),      # L
     (15, 108, 242)      # J
 ]
-GHOST_COLOR = (153, 153, 153)
-KICKS = [               # Try every possible kicks after a rotation, stop after finding the first valid kick
-    (0,0),
-    (1,0),
-    (-1,0),
-    (0,-1),
-    (2,0),
-    (-2,0)
-]
+# SRS Kick table
+JLSTZ_KICKS = {
+    (0,1): [(0,0),(-1,0),(-1,1),(0,-2),(-1,-2)],
+    (1,0): [(0,0),(1,0),(1,-1),(0,2),(1,2)],
+
+    (1,2): [(0,0),(1,0),(1,-1),(0,2),(1,2)],
+    (2,1): [(0,0),(-1,0),(-1,1),(0,-2),(-1,-2)],
+
+    (2,3): [(0,0),(1,0),(1,1),(0,-2),(1,-2)],
+    (3,2): [(0,0),(-1,0),(-1,-1),(0,2),(-1,2)],
+
+    (3,0): [(0,0),(-1,0),(-1,-1),(0,2),(-1,2)],
+    (0,3): [(0,0),(1,0),(1,1),(0,-2),(1,-2)]
+}
+I_KICKS = {
+    (0,1): [(0,0),(-2,0),(1,0),(-2,-1),(1,2)],
+    (1,0): [(0,0),(2,0),(-1,0),(2,1),(-1,-2)],
+
+    (1,2): [(0,0),(-1,0),(2,0),(-1,2),(2,-1)],
+    (2,1): [(0,0),(1,0),(-2,0),(1,-2),(-2,1)],          
+
+    (2,3): [(0,0),(2,0),(-1,0),(2,1),(-1,-2)],
+    (3,2): [(0,0),(-2,0),(1,0),(-2,-1),(1,2)],
+
+    (3,0): [(0,0),(1,0),(-2,0),(1,-2),(-2,1)],
+    (0,3): [(0,0),(-1,0),(2,0),(-1,2),(2,-1)]
+}
 # Functions
 def check_collision(piece, pos_x, pos_y):
     global BOARD
@@ -66,8 +85,15 @@ def rotate(piece,clockwise = True):
     else:
         return [list(row) for row in zip(*piece)][::-1]
 def try_rotate(current_piece, pos_x, pos_y, clockwise):  # Trying every possible wall kicks until the first valid one
-    rotated_piece = rotate(current_piece,clockwise)
-    for dx,dy in KICKS:
+    global current_rotation, current_piece_index
+    new_rotation = (current_rotation + (1 if clockwise else -1)) % 4    
+    rotated_piece = rotate(current_piece, clockwise)
+    kick_table = []
+    if current_piece_index == 1:    # I piece
+        kick_table = I_KICKS
+    else:
+        kick_table = JLSTZ_KICKS
+    for dx,dy in kick_table[(current_rotation,new_rotation)]:
         if not check_collision(rotated_piece, pos_x + dx, pos_y + dy):
             return rotated_piece, pos_x + dx, pos_y + dy
     return current_piece, pos_x, pos_y
@@ -125,7 +151,7 @@ def calculate_points(cleared_lines):
     current_score += cleared_lines * 100 * multiplier
 def reset():
     global BOARD, current_piece_index,current_piece_color,current_piece,current_piece_position_x,current_piece_position_y
-    global fall_timer,fall_delay,fall_delay_temp,total_line_cleared,level,touched_floor,choice
+    global fall_timer,fall_delay,fall_delay_temp,total_line_cleared,level,touched_floor,choice, current_rotation
     global time_hold,move_timer,move_direction,lock_timer,lock_reset_counter,current_score,current_piece_bag,next_piece_bag,isHolding,hold_piece_index,canHold
     choice = 0
     BOARD = [[0 for i in range(COLUMNS)] for i in range(ROWS)]
@@ -145,6 +171,8 @@ def reset():
     current_score = 0
     level = 0
     total_line_cleared = 0
+
+    current_rotation = 0
 
     current_piece_bag = list(range(1,8))
     random.shuffle(current_piece_bag)
@@ -175,7 +203,7 @@ soft_drop_multiplier = 10   # Speed increase when holding softdrop button
 fall_delay_temp = 0         # Used to store the current fall delay before pressing softdrop button
 total_line_cleared = 0
 level = 0
-touched_floor = False
+current_score = 0
 
 time_hold = 0
 slide_delay = 200       # Starts sliding after holding for 200ms
@@ -184,14 +212,14 @@ move_timer = 0
 move_delay = 100        # Slide every 100ms
 move_direction = 0
 
-lock_delay = 500        #lock into board after 500ms
+lock_delay = 500        # lock into board after 500ms
 lock_timer = 0
 
-max_lock_reset = 15
-lock_reset_counter = 0
+max_lock_reset = 15     # Number of actions the player can perform once they touch the ground
+lock_reset_counter = 0  # Once the player touches the ground, each movement/rotation counts as an action
+touched_floor = False
 
-current_score = 0
-current_piece_bag = list(range(1,8))
+current_piece_bag = list(range(1,8))    # 2 Bags, one is used for block prediction
 random.shuffle(current_piece_bag)
 next_piece_bag = list(range(1,8))
 random.shuffle(next_piece_bag)
@@ -199,12 +227,13 @@ random.shuffle(next_piece_bag)
 current_piece_index = current_piece_bag.pop()
 current_piece_color = PIECE_COLORS[current_piece_index]
 current_piece = PIECES[current_piece_index]
-current_piece_position_x = COLUMNS//2 - len(current_piece[0])//2
+current_piece_position_x = COLUMNS//2 - len(current_piece[0])//2    # Spawn centering
 current_piece_position_y = 0
 
 isHolding = False
 hold_piece_index = 0
 canHold = True
+current_rotation = 0    #used for SRS Kick tables. 0-default, 1-90°, 2-180°, 3-270° (clock wise rotation) 
 # Game states: 
 # 0-title screen
 # 1-game screen
@@ -227,9 +256,9 @@ while running:
                 running = False
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_DOWN:
-                    choice = 1
+                    choice = 1-choice
                 elif event.key == pygame.K_UP:
-                    choice = 0
+                    choice = 1-choice
                 elif event.key == pygame.K_ESCAPE:
                     running = False
                 elif event.key == pygame.K_RETURN:
@@ -292,12 +321,14 @@ while running:
                             lock_timer = 0
                             lock_reset_counter += 1
                         current_piece, current_piece_position_x, current_piece_position_y = try_rotate(current_piece, current_piece_position_x, current_piece_position_y, True)
+                        current_rotation = (current_rotation+1)%4
                 elif event.key == pygame.K_z:
                     if lock_reset_counter < 15: 
                         if touched_floor:
                             lock_timer = 0
                             lock_reset_counter += 1
                         current_piece, current_piece_position_x, current_piece_position_y = try_rotate(current_piece, current_piece_position_x, current_piece_position_y, False)
+                        current_rotation = (current_rotation-1) % 4
                 # Hold piece
                 elif event.key == pygame.K_x and canHold:
                     canHold = False
